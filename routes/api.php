@@ -14,18 +14,18 @@ use App\Http\Controllers\Admin\UserController;
 
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
-Route::post('verify-email', [AuthController::class, 'verifyEmail']);
-Route::post('resend-code', [AuthController::class, 'resendVerificationCode']);
+Route::post('verify_email', [AuthController::class, 'verifyEmail']);
+Route::post('resend_verification_code', [AuthController::class, 'resendVerificationCode']);
 
-Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
-Route::post('reset-password', [AuthController::class, 'resetPassword']);
+Route::post('forgot_password', [AuthController::class, 'forgotPassword']);
+Route::post('reset_password', [AuthController::class, 'resetPassword']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
-    Route::post('refresh-token', [AuthController::class, 'refreshToken']);
+    Route::post('refresh_token', [AuthController::class, 'refreshToken']);
 
-    Route::get('security-question', [AuthController::class, 'getSecurityQuestionByEmail']);
-    Route::post('set-security-question', [AuthController::class, 'setSecurityQuestion']);
+    Route::get('security_question', [AuthController::class, 'getSecurityQuestionByEmail']);
+    Route::post('set_security_question', [AuthController::class, 'setSecurityQuestion']);
 });
 
 
