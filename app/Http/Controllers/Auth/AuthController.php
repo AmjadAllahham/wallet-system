@@ -50,6 +50,21 @@ class AuthController extends Controller
         return $this->forgetPasswordService->forgotPassword($request->input('email'));
     }
 
+    // public function resetPassword(Request $request)
+    // {
+    //     $request->validate([
+    //         'email' => 'required|email',
+    //         'reset_code' => 'required|string',
+    //         'new_password' => 'required|string|min:8|confirmed',
+    //     ]);
+
+    //     return $this->forgetPasswordService->resetPassword(
+    //         $request->input('email'),
+    //         $request->input('reset_code'),
+    //         $request->input('new_password'),
+    //         $request->input('new_password_confirmation')
+    //     );
+    // }
     public function resetPassword(Request $request)
     {
         $request->validate([
@@ -58,13 +73,9 @@ class AuthController extends Controller
             'new_password' => 'required|string|min:8|confirmed',
         ]);
 
-        return $this->forgetPasswordService->resetPassword(
-            $request->input('email'),
-            $request->input('reset_code'),
-            $request->input('new_password'),
-            $request->input('new_password_confirmation')
-        );
+        return $this->forgetPasswordService->resetPassword($request->all());
     }
+
 
     public function logout()
     {
