@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Admin\CheckAdminController;
 
 // -----------------------
@@ -40,6 +41,10 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'admin'])->group(function ()
 Route::get('admin/admins', [UserController::class, 'getAdmins'])->middleware(['auth:sanctum', 'admin']);
 
 Route::middleware('auth:sanctum')->get('/profile', [AuthController::class, 'profile']);
+Route::middleware('auth:sanctum')->put('/profile/update', [ProfileController::class, 'update']);
+Route::middleware('auth:sanctum')->post('/profile/change-password', [ProfileController::class, 'changePassword']);
+
+
 
 // Route::middleware('auth:sanctum')->get('/wallets', [WalletController::class, 'index']);
 
