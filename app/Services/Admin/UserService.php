@@ -14,7 +14,7 @@ class UserService
 
     public function walletBalances()
     {
-        $users = User::with(['wallets.currency'])->get();
+        $users = User::with('wallets.currency')->get();
 
         if ($users->isEmpty()) {
             return $this->errorResponse('No users found', null, 404);
@@ -22,23 +22,26 @@ class UserService
 
         $data = $users->map(function ($user) {
             return [
-                'id' => $user->id,
-                'account_number' => $user->account_number,
-                'first_name' => $user->first_name,
-                'last_name' => $user->last_name,
-                'email' => $user->email,
-                'email_verified_at' => $user->email_verified_at,
-                'birth_date' => $user->birth_date,
-                'answer_security' => $user->answer_security,
-                'is_admin' => $user->is_admin,
-                'created_at' => $user->created_at,
-                'updated_at' => $user->updated_at,
+                'user_id'          => $user->id,
+                'account_number'   => $user->account_number,
+                'first_name'       => $user->first_name,
+                'last_name'        => $user->last_name,
+                'email'            => $user->email,
+                'email_verified'   => (bool) $user->email_verified_at,
+                'birth_date'       => $user->birth_date,
+                'job'              => $user->job,
+                'phone'            => $user->phone,
+                'address'          => $user->address,
+                'is_admin'         => (bool) $user->is_admin,
+                'created_at'       => $user->created_at->toDateTimeString(),
+                'updated_at'       => $user->updated_at->toDateTimeString(),
                 'wallets' => $user->wallets->map(function ($wallet) {
                     return [
-                        'currency' => $wallet->currency->code,
-                        'balance' => (float) $wallet->balance
+                        'currency_name' => $wallet->currency->name, // 👈 هنا الاسم
+                        'currency_code' => $wallet->currency->code, // أو الكود مثل USD
+                        'balance'       => $wallet->balance,
                     ];
-                })
+                }),
             ];
         });
 

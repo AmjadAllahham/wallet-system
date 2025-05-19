@@ -5,6 +5,7 @@ use App\Http\Controllers\WalletController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\AdminDepositController;
 use App\Http\Controllers\Admin\CheckAdminController;
 
 // -----------------------
@@ -51,5 +52,10 @@ Route::middleware('auth:sanctum')->post('/profile/change-password', [ProfileCont
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/wallets', [UserController::class, 'walletBalances']);
 });
+
+Route::middleware(['auth:sanctum', 'is_admin'])->post('/admin/deposit', [AdminDepositController::class, 'store']);
+
+
+
 
 
