@@ -6,11 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Wallet extends Model
 {
-    protected $fillable = [
-        'user_id',
-        'currency_id',
-        'balance'
-    ];
+    protected $fillable = ['user_id', 'currency_id', 'balance'];
 
     public function user()
     {
@@ -22,3 +18,4 @@ class Wallet extends Model
         return $this->belongsTo(Currency::class);
     }
 }
+

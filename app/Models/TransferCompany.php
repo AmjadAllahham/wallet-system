@@ -2,16 +2,12 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Currency extends Model
+class TransferCompany extends Model
 {
-    protected $fillable = ['name', 'code'];
-
-    public function wallets()
-    {
-        return $this->hasMany(Wallet::class);
-    }
+    use HasFactory;
     public function withdrawals()
     {
         return $this->hasMany(Withdrawal::class);

@@ -1,12 +1,16 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\WalletController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\WithdrawalController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\AdminDepositController;
+use App\Http\Controllers\AdminWithdrawalController;
+use App\Http\Controllers\TransferCompanyController;
 use App\Http\Controllers\Admin\CheckAdminController;
+
+
 
 // -----------------------
 // Auth Routes
@@ -36,7 +40,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'admin'])->group(function ()
     Route::post('users', [UserController::class, 'create']);
     Route::post('users/{id}', [UserController::class, 'update']);
     Route::delete('users/{id}', [UserController::class, 'destroy']);
-    Route::post('updateUser/{id}',[CheckAdminController::class,'updateUser']);
+    Route::post('updateUser/{id}', [CheckAdminController::class, 'updateUser']);
 });
 
 Route::get('admin/admins', [UserController::class, 'getAdmins'])->middleware(['auth:sanctum', 'admin']);
@@ -55,7 +59,23 @@ Route::middleware('auth:sanctum')->group(function () {
 
 Route::middleware(['auth:sanctum', 'is_admin'])->post('/admin/deposit', [AdminDepositController::class, 'store']);
 
+Route::middleware('auth:sanctum')->group(function () {
+    // طلب السحب (يقدم المستخدم طلب السحب)
+    Route::post('/withdrawals/request', [WithdrawalController::class, 'requestWithdrawal']);
+    // عرض طلبات السحب الخاصة بالمستخدم
+    Route::get('/withdrawals/my', [WithdrawalController::class, 'myWithdrawals']);
+});
 
+// مجموعة الراوت التي تحميها صلاحيات الأدمن (مثلاً middleware:auth:api + middleware:admin)
+Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
+    // عرض جميع طلبات السحب المعلقة
+    Route::get('/withdrawals', [AdminWithdrawalController::class, 'index']);
+    // الموافقة على طلب سحب
+    Route::post('/withdrawals/{id}/approve', [AdminWithdrawalController::class, 'approve']);
+    // رفض طلب سحب
+    Route::post('/withdrawals/{id}/reject', [AdminWithdrawalController::class, 'reject']);
+    Route::post('/manual-withdrawal', [WithdrawalController::class, 'manualWithdrawal']);
 
+});
 
-
+Route::get('/transfer-companies', [TransferCompanyController::class, 'index']);

@@ -17,6 +17,7 @@ use App\Services\Auth\AccountService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 
+
 class AuthService
 {
     use ApiResponser;
@@ -61,62 +62,62 @@ class AuthService
         return response()->json($this->successResponse('A verification code has been sent to your email.'));
     }
 
-   public function verifyEmail($email, $verificationCode)
-{
-    $cacheKey = 'user_registration_' . $email;
-    $cachedUser = Cache::get($cacheKey);
+    public function verifyEmail($email, $verificationCode)
+    {
+        $cacheKey = 'user_registration_' . $email;
+        $cachedUser = Cache::get($cacheKey);
 
-    if (!$cachedUser || $cachedUser['verification_code'] !== $verificationCode || request()->ip() !== $cachedUser['ip_address']) {
-        return response()->json($this->errorResponse('Invalid code or request.', 400));
-    }
-
-    if (User::where('email', $cachedUser['email'])->exists()) {
-        return response()->json($this->errorResponse('User already exists.', 400));
-    }
-
-    $accountNumber = AccountService::generateUniqueAccountNumber();
-
-    $user = User::create([
-        'first_name'        => $cachedUser['first_name'],
-        'last_name'         => $cachedUser['last_name'],
-        'email'             => $cachedUser['email'],
-        'password'          => $cachedUser['password'],
-        'email_verified_at' => now(),
-        'ip_address'        => $cachedUser['ip_address'],
-        'answer_security'   => $cachedUser['answer_security'],
-        'birth_date'        => $cachedUser['birth_date'],
-        'account_number'    => $accountNumber,
-    ]);
-
-    // التحقق من المحافظ وإنشاؤها فقط إذا لم تكن موجودة
-    $currencies = Currency::all();
-    foreach ($currencies as $currency) {
-        $walletExists = Wallet::where('user_id', $user->id)
-            ->where('currency_id', $currency->id)
-            ->exists();
-
-        if (!$walletExists) {
-            Wallet::create([
-                'user_id'     => $user->id,
-                'currency_id' => $currency->id,
-                'balance'     => 1000,
-            ]);
+        if (!$cachedUser || $cachedUser['verification_code'] !== $verificationCode || request()->ip() !== $cachedUser['ip_address']) {
+            return response()->json($this->errorResponse('Invalid code or request.', 400));
         }
+
+        if (User::where('email', $cachedUser['email'])->exists()) {
+            return response()->json($this->errorResponse('User already exists.', 400));
+        }
+
+        $accountNumber = AccountService::generateUniqueAccountNumber();
+
+        $user = User::create([
+            'first_name'        => $cachedUser['first_name'],
+            'last_name'         => $cachedUser['last_name'],
+            'email'             => $cachedUser['email'],
+            'password'          => $cachedUser['password'],
+            'email_verified_at' => now(),
+            'ip_address'        => $cachedUser['ip_address'],
+            'answer_security'   => $cachedUser['answer_security'],
+            'birth_date'        => $cachedUser['birth_date'],
+            'account_number'    => $accountNumber,
+        ]);
+
+        // التحقق من المحافظ وإنشاؤها فقط إذا لم تكن موجودة
+        $currencies = Currency::all();
+        foreach ($currencies as $currency) {
+            $walletExists = Wallet::where('user_id', $user->id)
+                ->where('currency_id', $currency->id)
+                ->exists();
+
+            if (!$walletExists) {
+                Wallet::create([
+                    'user_id'     => $user->id,
+                    'currency_id' => $currency->id,
+                    'balance'     => 1000,
+                ]);
+            }
+        }
+
+        Cache::forget($cacheKey);
+
+        // جلب المحافظ مع العملة وتحويلها إلى شكل key=>value للعملة والرصيد
+        $wallets = $user->wallets()->with('currency')->get();
+        $walletBalances = [];
+        foreach ($wallets as $wallet) {
+            $walletBalances[$wallet->currency->code] = (float) $wallet->balance;
+        }
+
+        return response()->json($this->successResponse('Email verified and wallets initialized with balances.', [
+            'wallets' => $walletBalances
+        ]));
     }
-
-    Cache::forget($cacheKey);
-
-    // جلب المحافظ مع العملة وتحويلها إلى شكل key=>value للعملة والرصيد
-    $wallets = $user->wallets()->with('currency')->get();
-    $walletBalances = [];
-    foreach ($wallets as $wallet) {
-        $walletBalances[$wallet->currency->code] = (float) $wallet->balance;
-    }
-
-    return response()->json($this->successResponse('Email verified and wallets initialized with balances.', [
-        'wallets' => $walletBalances
-    ]));
-}
 
 
     public function login($data)
@@ -235,4 +236,6 @@ class AuthService
             return false;
         }
     }
+
+ 
 }

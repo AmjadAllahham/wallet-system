@@ -13,8 +13,9 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            CurrencySeeder::class,    // عبي العملات أولاً
-            AdminUserSeeder::class,   // بعدين عبي الأدمين
+            CurrencySeeder::class,
+            AdminUserSeeder::class,
+            TransferCompanySeeder::class,
         ]);
     }
 }

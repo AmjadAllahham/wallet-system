@@ -24,13 +24,11 @@ class User extends Authenticatable
         'email_verified_at',
         'job',
         'phone',
-        'address'
+        'address',
+        'is_admin'
     ];
 
-    protected $hidden = [
-        'password',
-        'remember_token',
-    ];
+    protected $hidden = ['password', 'remember_token'];
 
     protected $casts = [
         'email_verified_at' => 'datetime',
@@ -39,7 +37,7 @@ class User extends Authenticatable
 
     public function isAdmin()
     {
-        return $this->is_admin;
+        return (bool) $this->is_admin;
     }
 
     public function wallets()
@@ -47,8 +45,20 @@ class User extends Authenticatable
         return $this->hasMany(Wallet::class);
     }
 
+    public function withdrawals()
+    {
+        return $this->hasMany(Withdrawal::class);
+    }
 
-    // إزالة currencies() لأنها تكرر wallets()
+    public function reviewedWithdrawals()
+    {
+        return $this->hasMany(Withdrawal::class, 'admin_id');
+    }
+
+    public function getFullNameAttribute()
+    {
+        return "{$this->first_name} {$this->last_name}";
+    }
 
     protected static function boot()
     {
@@ -65,5 +75,10 @@ class User extends Authenticatable
                 ]);
             }
         });
+    }
+
+    public function manualWithdrawals()
+    {
+        return $this->hasMany(ManualWithdrawal::class);
     }
 }
