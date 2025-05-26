@@ -2,6 +2,7 @@
 
 namespace App\Http;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Http\Kernel as HttpKernel;
 
 class Kernel extends HttpKernel
@@ -73,4 +74,8 @@ class Kernel extends HttpKernel
         'is_admin' => \App\Http\Middleware\IsAdmin::class,
 
     ];
+    protected function schedule(Schedule $schedule)
+    {
+        $schedule->command('exchange:update')->dailyAt('11:00');
+    }
 }

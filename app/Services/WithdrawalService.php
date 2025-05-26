@@ -103,71 +103,82 @@ class WithdrawalService
         return $withdrawal;
     }
 
-    public function approveWithdrawal(Withdrawal $withdrawal, $admin): array
-    {
-        try {
-            DB::beginTransaction();
+   public function approveWithdrawal(Withdrawal $withdrawal, $admin): array
+{
+    Log::info('approveWithdrawal started for withdrawal ID: ' . $withdrawal->id);
 
-            $wallet = Wallet::where('user_id', $withdrawal->user_id)
-                ->where('currency_id', $withdrawal->currency_id)
-                ->first();
+    try {
+        DB::beginTransaction();
 
-            if (!$wallet) {
-                throw ValidationException::withMessages([
-                    'wallet' => ['User wallet not found.'],
-                ]);
-            }
+        $wallet = Wallet::where('user_id', $withdrawal->user_id)
+            ->where('currency_id', $withdrawal->currency_id)
+            ->lockForUpdate()
+            ->first();
 
-            if ($wallet->balance < $withdrawal->amount) {
-                throw ValidationException::withMessages([
-                    'amount' => ['User does not have sufficient balance.'],
-                ]);
-            }
-
-            $wallet->decrement('balance', $withdrawal->amount);
-
-            $adminWallet = Wallet::firstOrCreate([
-                'user_id'     => $admin->id,
-                'currency_id' => $withdrawal->currency_id,
-            ], [
-                'balance' => 0
-            ]);
-
-            $adminWallet->increment('balance', $withdrawal->amount);
-
-            $withdrawal->update([
-                'status'   => 'approved',
-                'admin_id' => $admin->id,
-            ]);
-
-            $withdrawal->user->notify(new \App\Notifications\WithdrawalStatusNotification($withdrawal));
-
-            DB::commit();
-
-            $wallet->refresh();
-
-            return [
-                'message'    => 'Withdrawal request approved successfully.',
-                'withdrawal' => [
-                    'id'     => $withdrawal->id,
-                    'amount' => number_format($withdrawal->amount, 2),
-                    'status' => $withdrawal->status,
-                ],
-                'wallet_balance' => [
-                    'currency' => $wallet->currency->code,
-                    'balance'  => number_format($wallet->balance, 2),
-                ],
-            ];
-        } catch (ValidationException $e) {
-            DB::rollBack();
-            throw $e;
-        } catch (\Throwable $e) {
-            DB::rollBack();
+        if (!$wallet) {
             throw ValidationException::withMessages([
-                'error' => ['Unknown error occurred. Please try again later.'],
+                'wallet' => ['User wallet not found.'],
             ]);
         }
+
+        if ($wallet->balance < $withdrawal->amount) {
+            throw ValidationException::withMessages([
+                'amount' => ['User does not have sufficient balance.'],
+            ]);
+        }
+
+        $balanceBefore = $wallet->balance;
+
+        $wallet->decrement('balance', $withdrawal->amount);
+        $wallet->refresh();
+
+        $balanceAfter = $wallet->balance;
+
+        // زيادة رصيد الأدمن
+        $adminWallet = Wallet::firstOrCreate([
+            'user_id'     => $admin->id,
+            'currency_id' => $withdrawal->currency_id,
+        ], [
+            'balance' => 0
+        ]);
+        $adminWallet->increment('balance', $withdrawal->amount);
+
+        $withdrawal->update([
+            'status'   => 'approved',
+            'admin_id' => $admin->id,
+        ]);
+
+        // إشعار للمستخدم
+        $withdrawal->user->notify(new \App\Notifications\WithdrawalStatusNotification($withdrawal));
+
+        DB::commit();
+
+        return [
+            'message'    => 'Withdrawal request approved successfully.',
+            'withdrawal' => [
+                'id'     => $withdrawal->id,
+                'amount' => number_format($withdrawal->amount, 2),
+                'status' => $withdrawal->status,
+            ],
+            'wallet_balance' => [
+                'currency' => $wallet->currency->code,
+                'balance'  => number_format($wallet->balance, 2),
+            ],
+        ];
+    } catch (ValidationException $e) {
+        DB::rollBack();
+        throw $e;
+    } catch (\Throwable $e) {
+        DB::rollBack();
+        Log::error('approveWithdrawal failed: ' . $e->getMessage());
+        throw ValidationException::withMessages([
+            'error' => ['Unknown error occurred. Please try again later.'],
+        ]);
     }
+}
+
+
+
 
     public function rejectWithdrawal(Withdrawal $withdrawal, $admin): array
     {
@@ -206,19 +217,23 @@ class WithdrawalService
     public function manualWithdrawal(array $data)
     {
         try {
-            // جلب المستخدم الأدمن
             $admin = auth()->user();
 
-            // التحقق من صلاحية الأدمن مبكراً
+            // تحقق من صلاحية المستخدم (يجب أن يكون أدمن)
             if (!$admin || !$admin->is_admin) {
-                return ['error' => true, 'message' => 'Unauthorized: You do not have permission to perform this action'];
+                return [
+                    'error' => true,
+                    'message' => 'Unauthorized: You do not have permission to perform this action',
+                ];
             }
 
-            // تحقق من صحة البيانات المدخلة مع رسائل خطأ واضحة بالإنجليزية
+            // التحقق من صحة البيانات المدخلة
             $validator = Validator::make($data, [
                 'account_number' => 'required|string|exists:users,account_number',
                 'currency'       => 'required|string|exists:currencies,code',
                 'amount'         => 'required|numeric|min:0.01',
+                'note'           => 'nullable|string',
+                'transfer_company_id' => 'nullable|integer|exists:transfer_companies,id', // إذا كنت تدعم شركات التحويل
             ], [
                 'account_number.required' => 'Account number is required',
                 'account_number.exists'   => 'User with this account number does not exist',
@@ -230,38 +245,55 @@ class WithdrawalService
             ]);
 
             if ($validator->fails()) {
-                return ['error' => true, 'message' => $validator->errors()->first()];
+                return [
+                    'error' => true,
+                    'message' => $validator->errors()->first(),
+                ];
             }
 
             DB::beginTransaction();
 
-            // جلب المستخدم صاحب الحساب
+            // جلب المستخدم المستهدف
             $user = User::where('account_number', $data['account_number'])->first();
 
             // جلب العملة
-            $currency = Currency::where('code', $data['currency'])->first();
+            $currency = Currency::where('code', strtoupper($data['currency']))->first();
 
-            // جلب محفظة المستخدم للعملة المطلوبة مع قفل للسجل
-            $userWallet = $user->wallets()->where('currency_id', $currency->id)->lockForUpdate()->first();
+            // جلب المحفظة الخاصة بالمستخدم مع قفل السجل
+            $userWallet = $user->wallets()
+                ->where('currency_id', $currency->id)
+                ->lockForUpdate()
+                ->first();
 
             if (!$userWallet) {
                 DB::rollBack();
-                return ['error' => true, 'message' => 'User wallet for the specified currency not found'];
+                return [
+                    'error' => true,
+                    'message' => 'User wallet for the specified currency not found',
+                ];
             }
 
+            // التحقق من توفر رصيد كافٍ
             if ($userWallet->balance < $data['amount']) {
                 DB::rollBack();
-                return ['error' => true, 'message' => 'Insufficient balance in user wallet'];
+                return [
+                    'error' => true,
+                    'message' => 'Insufficient balance in user wallet',
+                ];
             }
 
-            // خصم المبلغ من محفظة المستخدم
+            $balanceBefore = $userWallet->balance;
+
+            // خصم الرصيد
             $userWallet->balance -= $data['amount'];
             $userWallet->save();
 
-            // إنشاء رقم إيصال فريد
-            $receiptNumber = 'REC-' . strtoupper(uniqid());
+            $balanceAfter = $userWallet->balance;
 
-            // تسجيل السحب في جدول withdrawals مع الحالة 'approved' ونوع السحب 'manual'
+            // إنشاء رقم إيصال فريد بطول ثابت وأحرف كبيرة
+            $receiptNumber = 'REC-' . strtoupper(Str::random(10));
+
+            // تسجيل طلب السحب
             $withdrawal = Withdrawal::create([
                 'user_id'            => $user->id,
                 'admin_id'           => $admin->id,
@@ -274,11 +306,24 @@ class WithdrawalService
                 'phone'              => $user->phone ?? '',
                 'location'           => $user->address ?? '',
                 'note'               => $data['note'] ?? null,
-                'transfer_company_id' => $data['transfer_company_id'] ?? null, // إضافة اختيارية
+                'transfer_company_id' => $data['transfer_company_id'] ?? null,
             ]);
 
+            // سجل العملية في سجل التاريخ HistoryService
+            HistoryService::log(
+                $user->id,            // ✅ user_id
+                $userWallet->id,      // ✅ wallet_id (رقم صحيح)
+                'withdrawal',         // ✅ type (كلمة)
+                $currency->code,      // ✅ currency
+                $data['amount'],      // ✅ amount
+                $balanceBefore,       // ✅ balance_before
+                $balanceAfter,        // ✅ balance_after
+                'Manual withdrawal by admin' // ✅ note
+            );
 
-            Log::info('Withdrawal created with status: ' . $withdrawal->status);
+
+
+            Log::info('Manual withdrawal created with status: ' . $withdrawal->status);
 
             DB::commit();
 
@@ -290,7 +335,11 @@ class WithdrawalService
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Manual withdrawal error: ' . $e->getMessage());
-            return ['error' => true, 'message' => 'Unknown error occurred'];
+
+            return [
+                'error' => true,
+                'message' => 'Unknown error occurred',
+            ];
         }
     }
 }

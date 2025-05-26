@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use App\Models\TransferCompany;
 use App\Models\ManualWithdrawal;
+use App\Services\HistoryService;
 use Illuminate\Support\Facades\DB;
 use App\Services\WithdrawalService;
 use Illuminate\Support\Facades\Log;
@@ -117,6 +118,8 @@ class WithdrawalController extends Controller
 
     public function approve(Request $request, $withdrawalId)
     {
+        Log::info('Entered WithdrawalController@approve');
+
         $admin = Auth::user();
 
         try {
@@ -147,102 +150,117 @@ class WithdrawalController extends Controller
         }
     }
 
-    public function manualWithdrawal(Request $request)
+    // public function manualWithdrawal(Request $request)
+    // {
+    //     $admin = auth()->user();
+
+    //     // التحقق من صلاحية المستخدم (يجب أن يكون أدمن)
+    //     if (!$admin || !$admin->is_admin) {
+    //         return response()->json(['error' => 'Unauthorized'], 403);
+    //     }
+
+    //     // التحقق من صحة البيانات المدخلة
+    //     $validator = Validator::make($request->all(), [
+    //         'account_number' => 'required|string|exists:users,account_number',
+    //         'currency'       => 'required|string|in:USD,SYP,TRY',
+    //         'amount'         => 'required|numeric|min:0.01',
+    //         'note'           => 'nullable|string',
+    //     ], [
+    //         'account_number.required' => 'Account number is required',
+    //         'account_number.exists'   => 'User with this account number does not exist',
+    //         'currency.required'       => 'Currency is required',
+    //         'currency.in'             => 'Currency must be one of: USD, SYP, TRY',
+    //         'amount.required'         => 'Amount is required',
+    //         'amount.numeric'          => 'Amount must be a number',
+    //         'amount.min'              => 'Amount must be greater than zero',
+    //     ]);
+
+    //     if ($validator->fails()) {
+    //         return response()->json(['error' => $validator->errors()->first()], 422);
+    //     }
+
+    //     DB::beginTransaction();
+
+    //     try {
+    //         // جلب المستخدم المستهدف بناءً على رقم الحساب
+    //         $targetUser = User::where('account_number', $request->account_number)->first();
+
+    //         // جلب العملة حسب الرمز
+    //         $currency = Currency::where('code', strtoupper($request->currency))->first();
+
+    //         // جلب المحفظة الخاصة بالمستخدم للعملة المحددة مع قفل السجل لتجنب مشاكل التزامن
+    //         $wallet = Wallet::where('user_id', $targetUser->id)
+    //             ->where('currency_id', $currency->id)
+    //             ->lockForUpdate()
+    //             ->first();
+
+    //         if (!$wallet) {
+    //             DB::rollBack();
+    //             return response()->json(['error' => 'Wallet not found'], 404);
+    //         }
+
+    //         // التحقق من وجود رصيد كافٍ في المحفظة
+    //         if ($wallet->balance < $request->amount) {
+    //             DB::rollBack();
+    //             return response()->json(['error' => 'Insufficient balance'], 422);
+    //         }
+
+    //         $balanceBefore = $wallet->balance;
+
+    //         // خصم المبلغ من المحفظة
+    //         $wallet->balance -= $request->amount;
+    //         $wallet->save();
+
+    //         $balanceAfter = $wallet->balance;
+
+    //         // إنشاء رقم إيصال فريد
+    //         $receiptNumber = 'REC-' . strtoupper(Str::random(10));
+
+    //         // تسجيل السحب في جدول السحوبات
+    //         $withdrawal = Withdrawal::create([
+    //             'user_id'        => $targetUser->id,
+    //             'admin_id'       => $admin->id,
+    //             'currency_id'    => $currency->id,
+    //             'amount'         => $request->amount,
+    //             'receipt_number' => $receiptNumber,
+    //             'status'         => 'approved',
+    //             'type'           => 'manual',
+    //             'full_name'      => $targetUser->getFullNameAttribute(),
+    //             'phone'          => $targetUser->phone ?? '',
+    //             'location'       => $targetUser->address ?? '',
+    //             'note'           => $request->note ?? null,
+    //         ]);
+
+    //                 DB::commit();
+
+    //         // رد ناجح مع بيانات العملية
+    //         return response()->json([
+    //             'message' => 'Manual withdrawal completed successfully',
+    //             'receipt_number' => $receiptNumber,
+    //             'account_number' => $request->account_number,
+    //             'currency' => strtoupper($request->currency),
+    //             'amount' => $request->amount,
+    //         ], 200);
+
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+    //         Log::error('Manual withdrawal error: ' . $e->getMessage());
+
+    //         return response()->json(['error' => 'Unknown error occurred'], 500);
+    //     }
+    // }
+
+    public function manualWithdrawal(Request $request, WithdrawalService $withdrawalService)
     {
-        $user = auth()->user();
+        $result = $withdrawalService->manualWithdrawal($request->all());
 
-        if (!$user->is_admin) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+        if ($result['error']) {
+            return response()->json(['error' => $result['message']], 422);
         }
 
-        // التحقق مع رسائل خطأ مخصصة
-        $validator = Validator::make($request->all(), [
-            'account_number' => 'required|string',
-            'currency'       => 'required|string|in:USD,SYP,TRY',
-            'amount'         => 'required|numeric|min:0.01',
-        ], [
-            'account_number.required' => 'Account number is required',
-            'currency.required'       => 'Currency is required',
-            'currency.in'             => 'Currency must be one of: USD, SYP, TRY',
-            'amount.required'         => 'Amount is required',
-            'amount.numeric'          => 'Amount must be a number',
-            'amount.min'              => 'Amount must be greater than zero',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['error' => $validator->errors()->first()], 422);
-        }
-
-        $currencyCode = strtoupper($request->currency);
-        $amount = $request->amount;
-
-        DB::beginTransaction();
-
-        try {
-            // جلب المستخدم بناءً على رقم الحساب
-            $targetUser = User::where('account_number', $request->account_number)->first();
-            if (!$targetUser) {
-                DB::rollBack();
-                return response()->json(['error' => 'User not found'], 404);
-            }
-
-            // جلب العملة بناءً على الكود
-            $currency = Currency::where('code', $currencyCode)->first();
-            if (!$currency) {
-                DB::rollBack();
-                return response()->json(['error' => 'Currency not found'], 404);
-            }
-
-            // جلب محفظة المستخدم للعملة المطلوبة
-            $wallet = Wallet::where('user_id', $targetUser->id)
-                ->where('currency_id', $currency->id)
-                ->lockForUpdate()
-                ->first();
-
-            if (!$wallet) {
-                DB::rollBack();
-                return response()->json(['error' => 'Wallet not found'], 404);
-            }
-
-            if ($wallet->balance < $amount) {
-                DB::rollBack();
-                return response()->json(['error' => 'Insufficient balance'], 422);
-            }
-
-            // خصم الرصيد
-            $wallet->balance -= $amount;
-            $wallet->save();
-
-            // إنشاء رقم إيصال فريد
-            $receiptNumber = strtoupper(Str::random(10));
-
-            // تسجيل السحب في جدول withdrawals مع الحالة approved
-            Withdrawal::create([
-                'user_id'        => $targetUser->id,
-                'admin_id'       => $user->id,
-                'currency_id'    => $currency->id,
-                'amount'         => $amount,
-                'receipt_number' => $receiptNumber,
-                'status'         => 'approved',
-                'full_name'      => $targetUser->getFullNameAttribute(), // أو أي طريقة لجلب الاسم الكامل
-                'phone'          => $targetUser->phone ?? '',
-                'location'       => $targetUser->address ?? '',
-            ]);
-
-            DB::commit();
-
-            return response()->json([
-                'message' => 'Manual withdrawal completed successfully',
-                'receipt_number' => $receiptNumber,
-                'account_number' => $request->account_number,
-                'currency' => $currencyCode,
-                'amount' => $amount,
-            ], 200);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Manual withdrawal error: ' . $e->getMessage());
-
-            return response()->json(['error' => 'Unknown error'], 500);
-        }
+        return response()->json([
+            'message' => $result['message'],
+            'receipt_number' => $result['receipt_number'] ?? null,
+        ], 200);
     }
 }

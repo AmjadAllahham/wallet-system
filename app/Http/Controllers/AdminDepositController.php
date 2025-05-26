@@ -8,6 +8,7 @@ use App\Models\Currency;
 use App\Models\Deposit;
 use Illuminate\Http\Request;
 use App\Services\DepositService;
+use App\Services\HistoryService;
 
 class AdminDepositController extends Controller
 {
@@ -31,7 +32,6 @@ class AdminDepositController extends Controller
 
             // Check if user exists
             $user = User::where('account_number', $data['account_number'])->first();
-
             if (!$user) {
                 return response()->json([
                     'success' => false,
@@ -41,7 +41,6 @@ class AdminDepositController extends Controller
 
             // Check if currency exists
             $currency = Currency::where('code', $data['currency_code'])->first();
-
             if (!$currency) {
                 return response()->json([
                     'success' => false,
@@ -57,9 +56,15 @@ class AdminDepositController extends Controller
                 'balance' => 0
             ]);
 
+            // Snapshot of balance before
+            $balanceBefore = $wallet->balance;
+
             // Update wallet balance
             $wallet->balance += $data['amount'];
             $wallet->save();
+
+            // Snapshot of balance after
+            $balanceAfter = $wallet->balance;
 
             // Generate receipt number
             $receiptNumber = DepositService::generateReceiptNumber();
@@ -70,8 +75,22 @@ class AdminDepositController extends Controller
                 'currency_id'    => $currency->id,
                 'amount'         => $data['amount'],
                 'receipt_number' => $receiptNumber,
-                'admin_id'       => auth()->id(),
+                'admin_id' => auth()->id() ?? 1, // ← استخدم رقم أدمن موجود فعلاً
             ]);
+
+            // ✅ المرحلة 4: تسجيل العملية في سجل الأرشيف
+            HistoryService::log(
+                $user->id,           // user_id
+                $wallet->id,         // wallet_id
+                'deposit',           // type ← مهم جداً
+                $currency->code,     // currency
+                $data['amount'],     // amount
+                $balanceBefore,      // balance_before
+                $balanceAfter,       // balance_after
+                'Manual deposit by admin' // note
+            );
+
+
 
             // Get updated wallet balances
             $allWallets = Wallet::with('currency')
@@ -94,13 +113,11 @@ class AdminDepositController extends Controller
                     'name' => $user->name,
                 ]
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'An unexpected error occurred. Please try again later.',
-                // Uncomment the next line for debugging only (not in production):
-                // 'error' => $e->getMessage()
+                // 'error' => $e->getMessage() // Debug only
             ], 500);
         }
     }

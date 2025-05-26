@@ -5,10 +5,15 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\WithdrawalController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\UserHistoryController;
 use App\Http\Controllers\AdminDepositController;
+use App\Http\Controllers\AdminHistoryController;
+use App\Http\Controllers\WalletTransferController;
 use App\Http\Controllers\AdminWithdrawalController;
 use App\Http\Controllers\TransferCompanyController;
 use App\Http\Controllers\Admin\CheckAdminController;
+use App\Http\Controllers\CurrencyExchangeController;
+
 
 
 
@@ -79,3 +84,13 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
 });
 
 Route::get('/transfer-companies', [TransferCompanyController::class, 'index']);
+
+Route::middleware('auth:sanctum')->post('/crosswalletexchange', [WalletTransferController::class, 'crosswalletexchange']);
+
+Route::middleware('auth:sanctum')->post('/wallet/exchange', [CurrencyExchangeController::class, 'convert']);
+
+// للمستخدم العادي
+Route::middleware('auth:sanctum')->get('/history', [UserHistoryController::class, 'index']);
+// للأدمن فقط
+Route::middleware(['auth:sanctum', 'admin'])->get('/admin/history', [AdminHistoryController::class, 'index']);
+
