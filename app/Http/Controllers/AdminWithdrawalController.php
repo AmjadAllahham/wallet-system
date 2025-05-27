@@ -20,7 +20,6 @@ class AdminWithdrawalController extends Controller
         $this->withdrawalService = $withdrawalService;
     }
 
-
     public function index()
     {
         $withdrawals = Withdrawal::with(['user', 'currency'])
@@ -47,7 +46,6 @@ class AdminWithdrawalController extends Controller
 
         return response()->json($data);
     }
-
 
     public function approve(Request $request, $id)
     {
@@ -155,6 +153,7 @@ class AdminWithdrawalController extends Controller
             'withdrawal' => $withdrawal,
         ]);
     }
+    
     //     public function reject(Request $request, $id)
     // {
     //     $admin = Auth::user();

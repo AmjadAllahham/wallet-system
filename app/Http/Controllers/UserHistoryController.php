@@ -33,9 +33,21 @@ class UserHistoryController extends Controller
             $query->whereDate('created_at', '<=', $request->end_date);
         }
 
+        $limit = min((int) $request->get('limit', 20), 100);
+
         return response()->json([
-            'history' => $query->orderBy('created_at', 'desc')->paginate(20)
+            'history' => $query->orderBy('created_at', 'desc')->paginate($limit)->through(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'type' => $item->type,
+                    'currency' => $item->currency,
+                    'amount' => $item->amount,
+                    'balance_before' => $item->balance_before,
+                    'balance_after' => $item->balance_after,
+                    'note' => $item->note,
+                    'created_at' => $item->created_at->toDateTimeString(),
+                ];
+            })
         ]);
     }
 }
-

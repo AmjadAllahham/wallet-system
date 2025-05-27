@@ -81,4 +81,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(ManualWithdrawal::class);
     }
+
+    public function histories()
+    {
+        return $this->hasMany(\App\Models\History::class);
+    }
 }
