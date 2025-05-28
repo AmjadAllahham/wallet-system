@@ -70,8 +70,8 @@ class AuthService
         if (!$cachedUser || $cachedUser['verification_code'] !== $verificationCode || request()->ip() !== $cachedUser['ip_address']) {
             return response()->json($this->errorResponse('Invalid code or request.', 400));
         }
-
-        if (User::where('email', $cachedUser['email'])->exists()) {
+        $isUserExisited = User::where('email', $cachedUser['email'])->exists();
+        if ($isUserExisited) {
             return response()->json($this->errorResponse('User already exists.', 400));
         }
 
@@ -91,11 +91,14 @@ class AuthService
 
         // التحقق من المحافظ وإنشاؤها فقط إذا لم تكن موجودة
         $currencies = Currency::all();
+
+        // don't make onnetion into loop plz
         foreach ($currencies as $currency) {
             $walletExists = Wallet::where('user_id', $user->id)
                 ->where('currency_id', $currency->id)
                 ->exists();
 
+                
             if (!$walletExists) {
                 Wallet::create([
                     'user_id'     => $user->id,

@@ -17,11 +17,6 @@ use App\Http\Controllers\CurrencyExchangeController;
 
 
 
-// -----------------------
-// Auth Routes
-// -----------------------
-
-
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 Route::post('verify_email', [AuthController::class, 'verifyEmail']);
@@ -53,10 +48,6 @@ Route::get('admin/admins', [UserController::class, 'getAdmins'])->middleware(['a
 Route::middleware('auth:sanctum')->get('/profile', [AuthController::class, 'profile']);
 Route::middleware('auth:sanctum')->put('/profile/update', [ProfileController::class, 'update']);
 Route::middleware('auth:sanctum')->post('/profile/change-password', [ProfileController::class, 'changePassword']);
-
-
-
-// Route::middleware('auth:sanctum')->get('/wallets', [WalletController::class, 'index']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/wallets', [UserController::class, 'walletBalances']);

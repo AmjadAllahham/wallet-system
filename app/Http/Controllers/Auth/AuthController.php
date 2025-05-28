@@ -100,12 +100,12 @@ class AuthController extends Controller
             'message' => 'User profile retrieved successfully.',
             'data' => [
                 'account_number' => $user->account_number,
-                'full_name' => $user->first_name . ' ' . $user->last_name,
+                'full_name' => trim($user->first_name . ' ' . $user->last_name),
                 'email' => $user->email,
+                'phone' => $user->phone ?? null,
+                'job' => $user->job ?? null,
+                'address' => $user->location ?? null,
             ]
         ]);
     }
-
-    
-
 }
